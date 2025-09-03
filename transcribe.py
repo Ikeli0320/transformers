@@ -18,6 +18,14 @@ import psutil
 import torch
 import subprocess
 
+# 嘗試導入 faster-whisper (可選)
+try:
+    from faster_whisper import WhisperModel
+    FASTER_WHISPER_AVAILABLE = True
+except ImportError:
+    FASTER_WHISPER_AVAILABLE = False
+    print("💡 faster-whisper 未安裝，將使用標準 transformers")
+
 class SmartTranscriber:
     def __init__(self):
         self.supported_formats = ['.aac', '.mp3', '.wav', '.m4a', '.flac']
@@ -395,10 +403,13 @@ class SmartTranscriber:
             return audio_path
     
     def load_model(self):
-        """智能載入模型（Breeze-ASR-25 + 備用 Whisper）"""
+        """智能載入模型（Breeze-ASR-25 + faster-whisper 備用）"""
         print("🤖 智能載入語音轉錄模型...")
         print("🎯 主要模型: Breeze-ASR-25 (台灣中文優化)")
-        print("🔄 備用模型: Whisper (通用模型)")
+        if FASTER_WHISPER_AVAILABLE:
+            print("🔄 備用模型: faster-whisper (高效能 Whisper)")
+        else:
+            print("🔄 備用模型: transformers Whisper (標準 Whisper)")
         
         # 強制垃圾回收
         gc.collect()
@@ -427,20 +438,27 @@ class SmartTranscriber:
             )
             print("✅ Breeze-ASR-25 模型載入完成！")
             self.model_name = "Breeze-ASR-25"
+            self.model_type = "transformers"
         except Exception as e:
             print(f"⚠️  Breeze-ASR-25 載入失敗: {e}")
             print("🔄 切換到備用 Whisper 模型...")
             
-            # 載入備用模型 (Whisper)
-            self.model = pipeline(
-                task="automatic-speech-recognition",
-                model="openai/whisper-base",
-                device=device,
-                torch_dtype=torch_dtype,
-                return_timestamps=True
-            )
-            print("✅ Whisper 備用模型載入完成！")
-            self.model_name = "Whisper"
+            # 嘗試使用 faster-whisper
+            if FASTER_WHISPER_AVAILABLE:
+                try:
+                    self._load_faster_whisper_model()
+                    self.model_name = "faster-whisper"
+                    self.model_type = "faster-whisper"
+                except Exception as e2:
+                    print(f"⚠️  faster-whisper 載入失敗: {e2}")
+                    print("🔄 切換到標準 transformers Whisper...")
+                    self._load_standard_whisper_model()
+                    self.model_name = "Whisper"
+                    self.model_type = "transformers"
+            else:
+                self._load_standard_whisper_model()
+                self.model_name = "Whisper"
+                self.model_type = "transformers"
         
         # 檢查載入後記憶體使用
         memory_after = psutil.virtual_memory().percent
@@ -452,10 +470,54 @@ class SmartTranscriber:
         elif memory_after > 80:
             print("💡 記憶體使用率較高，建議監控系統資源")
     
+    def _load_faster_whisper_model(self):
+        """載入 faster-whisper 模型"""
+        print("🚀 載入 faster-whisper 模型...")
+        
+        # 智能選擇模型大小和計算類型
+        if self.hardware_info['acceleration'] == 'CUDA':
+            model_size = "large-v3"
+            compute_type = "float16"
+        elif self.hardware_info['acceleration'] == 'MPS':
+            model_size = "large-v2"  # MPS 對 v3 支援可能不完整
+            compute_type = "float16"
+        else:
+            model_size = "medium"
+            compute_type = "int8"
+        
+        print(f"   模型大小: {model_size}")
+        print(f"   計算類型: {compute_type}")
+        
+        self.model = WhisperModel(
+            model_size, 
+            device=self.hardware_info['device'], 
+            compute_type=compute_type
+        )
+        print("✅ faster-whisper 模型載入完成！")
+    
+    def _load_standard_whisper_model(self):
+        """載入標準 transformers Whisper 模型"""
+        print("🔄 載入標準 transformers Whisper 模型...")
+        
+        device = self.hardware_info['device']
+        torch_dtype = self.optimized_params['torch_dtype']
+        
+        self.model = pipeline(
+            task="automatic-speech-recognition",
+            model="openai/whisper-base",
+            device=device,
+            torch_dtype=torch_dtype,
+            return_timestamps=True
+        )
+        print("✅ 標準 Whisper 模型載入完成！")
+    
     def transcribe_with_fallback(self, audio_path):
         """智能轉錄，如果結果只有驚嘆號則切換到備用模型"""
         # 首先嘗試主要模型
-        result = self.model(audio_path, return_timestamps=True)
+        if self.model_type == "faster-whisper":
+            result = self._transcribe_with_faster_whisper(audio_path)
+        else:
+            result = self.model(audio_path, return_timestamps=True)
         
         # 檢查結果是否只有驚嘆號
         text = result['text'].strip()
@@ -464,18 +526,72 @@ class SmartTranscriber:
             
             # 載入備用模型
             if self.model_name == "Breeze-ASR-25":
-                print("🔄 切換到 Whisper 模型...")
-                backup_model = pipeline(
-    task="automatic-speech-recognition",
-                    model="openai/whisper-base",
-                    device=self.hardware_info['device'],
-                    torch_dtype=self.optimized_params['torch_dtype'],
-                    return_timestamps=True
-                )
-                result = backup_model(audio_path, return_timestamps=True)
-                print("✅ 使用 Whisper 模型重新轉錄")
+                print("🔄 切換到備用 Whisper 模型...")
+                if FASTER_WHISPER_AVAILABLE:
+                    try:
+                        backup_model = WhisperModel("large-v2", device=self.hardware_info['device'], compute_type="float16")
+                        result = self._transcribe_with_faster_whisper(audio_path, backup_model)
+                        print("✅ 使用 faster-whisper 模型重新轉錄")
+                    except:
+                        backup_model = pipeline(
+                            task="automatic-speech-recognition",
+                            model="openai/whisper-base",
+                            device=self.hardware_info['device'],
+                            torch_dtype=self.optimized_params['torch_dtype'],
+                            return_timestamps=True
+                        )
+                        result = backup_model(audio_path, return_timestamps=True)
+                        print("✅ 使用標準 Whisper 模型重新轉錄")
+                else:
+                    backup_model = pipeline(
+                        task="automatic-speech-recognition",
+                        model="openai/whisper-base",
+                        device=self.hardware_info['device'],
+                        torch_dtype=self.optimized_params['torch_dtype'],
+                        return_timestamps=True
+                    )
+                    result = backup_model(audio_path, return_timestamps=True)
+                    print("✅ 使用標準 Whisper 模型重新轉錄")
             else:
                 print("⚠️  備用模型也無法識別，返回原始結果")
+        
+        return result
+    
+    def _transcribe_with_faster_whisper(self, audio_path, model=None):
+        """使用 faster-whisper 進行轉錄"""
+        if model is None:
+            model = self.model
+        
+        # 使用 faster-whisper 的 VAD 和優化參數
+        segments, info = model.transcribe(
+            audio_path,
+            beam_size=5,
+            vad_filter=True,
+            vad_parameters=dict(min_silence_duration_ms=500)
+        )
+        
+        # 轉換為標準格式
+        full_text = "".join(segment.text for segment in segments)
+        
+        # 創建標準格式的結果
+        result = {
+            "text": full_text,
+            "chunks": []
+        }
+        
+        # 重新獲取帶時間戳的結果
+        segments_with_timestamps, _ = model.transcribe(
+            audio_path,
+            beam_size=5,
+            vad_filter=True,
+            vad_parameters=dict(min_silence_duration_ms=500)
+        )
+        
+        for segment in segments_with_timestamps:
+            result["chunks"].append({
+                "text": segment.text,
+                "timestamp": [segment.start, segment.end]
+            })
         
         return result
         

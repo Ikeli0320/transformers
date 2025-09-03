@@ -192,6 +192,29 @@ python3 transcribe.py
 💾 最終記憶體使用: 68.5%
 ```
 
+## faster-whisper 整合範例
+
+### 自動 faster-whisper 支援
+```python
+# 程式會自動偵測並使用 faster-whisper
+# 如果可用，會優先使用 faster-whisper 作為備用模型
+# 效能提升 4-5 倍
+
+# 手動啟用 faster-whisper
+pip install faster-whisper
+python3 transcribe.py
+```
+
+### Colab 版本使用
+```python
+# 在 Google Colab 中使用
+# 參考 examples/colab_example.py
+
+# 上傳到 Colab 並執行
+# 自動偵測 GPU/CPU 並優化參數
+# 支援 VAD 和智能空白段落移除
+```
+
 ## 自定義設定範例
 
 ### 修改分段大小

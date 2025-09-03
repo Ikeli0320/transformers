@@ -23,6 +23,9 @@ tqdm>=4.65.0
 # 音訊格式支援
 pydub>=0.25.0
 
+# 高效能 Whisper 支援
+faster-whisper>=0.10.0
+
 # 可選: GPU 加速 (NVIDIA)
 # torch-audio>=2.0.0  # 如果需要額外的音訊處理功能
 

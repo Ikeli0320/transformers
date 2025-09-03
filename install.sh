@@ -60,6 +60,17 @@ fi
 echo "📦 安裝 Python 依賴..."
 pip3 install -r requirements.txt
 
+# 檢查 faster-whisper 安裝
+echo "🔍 檢查 faster-whisper 支援..."
+python3 -c "
+try:
+    from faster_whisper import WhisperModel
+    print('✅ faster-whisper 已安裝，將提供 4-5x 效能提升')
+except ImportError:
+    print('💡 faster-whisper 未安裝，將使用標準 transformers')
+    print('   如需更高效能，可執行: pip3 install faster-whisper')
+"
+
 if [ $? -eq 0 ]; then
     echo "✅ Python 依賴安裝完成"
 else

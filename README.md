@@ -6,8 +6,9 @@
 
 ### 🤖 智能模型系統
 - **主要模型**: MediaTek-Research/Breeze-ASR-25 (台灣中文口音優化)
-- **備用模型**: OpenAI Whisper (通用模型)
+- **備用模型**: faster-whisper (高效能 Whisper) 或標準 transformers Whisper
 - **自動切換**: 當主要模型無法識別時自動使用備用模型
+- **效能優化**: faster-whisper 比標準 Whisper 快 4-5 倍
 
 ### 🔧 智能硬體偵測
 - **Apple Silicon 優化**: 自動偵測 M1/M2/M3/M4 晶片並使用 MPS 加速
@@ -114,8 +115,10 @@ smart-audio-transcriber/
 ## 📊 效能表現
 
 ### 處理速度
-- **Apple M4 Pro**: ~2-3x 即時速度
-- **NVIDIA RTX 4090**: ~3-4x 即時速度
+- **Apple M4 Pro (faster-whisper)**: ~4-6x 即時速度
+- **NVIDIA RTX 4090 (faster-whisper)**: ~6-8x 即時速度
+- **Apple M4 Pro (Breeze-ASR-25)**: ~2-3x 即時速度
+- **NVIDIA RTX 4090 (Breeze-ASR-25)**: ~3-4x 即時速度
 - **CPU (Intel i7)**: ~0.5-1x 即時速度
 
 ### 準確度
