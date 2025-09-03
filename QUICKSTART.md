@@ -4,31 +4,44 @@
 
 ### 1. 安裝依賴
 ```bash
-# 自動安裝 (推薦)
+# Linux/macOS: 自動安裝 (推薦)
 ./install.sh
 
+# Windows: 自動安裝 (推薦)
+install.bat
+
 # 或手動安裝
-pip3 install -r requirements.txt
-brew install ffmpeg  # macOS
+pip install -r requirements.txt
+# 然後安裝 FFmpeg (參考 README.md)
 ```
 
 ### 2. 準備音訊檔案
 ```bash
-# 將您的音訊檔案放在專案根目錄
+# Linux/macOS: 將您的音訊檔案放在專案根目錄
 cp /path/to/your/audio.aac source.aac
+
+# Windows: 複製音訊檔案到專案根目錄
+copy "C:\path\to\your\audio.aac" source.aac
 ```
 
 ### 3. 執行轉錄
 ```bash
-# 一鍵轉錄
+# Linux/macOS: 一鍵轉錄
 python3 transcribe.py
+
+# Windows: 一鍵轉錄
+python transcribe.py
 ```
 
 ### 4. 查看結果
 ```bash
-# 結果會自動保存在 轉錄結果/ 目錄
+# Linux/macOS: 結果會自動保存在 轉錄結果/ 目錄
 ls 轉錄結果/
 cat 轉錄結果/result-source-*.txt
+
+# Windows: 結果會自動保存在 轉錄結果\ 目錄
+dir 轉錄結果\
+type 轉錄結果\result-source-*.txt
 ```
 
 ## 支援的音訊格式
@@ -50,7 +63,9 @@ cat 轉錄結果/result-source-*.txt
 ### 推薦配置
 - Python 3.9+
 - 8GB+ RAM
-- Apple Silicon (M1/M2/M3/M4) 或 NVIDIA GPU
+- Windows: NVIDIA GPU (RTX 系列) 或 Intel/AMD CPU
+- macOS: Apple Silicon (M1/M2/M3/M4) 或 Intel CPU
+- Linux: NVIDIA GPU 或 Intel/AMD CPU
 - 5GB+ 可用儲存空間
 
 ## 常見問題

@@ -74,9 +74,11 @@ class SmartTranscriber:
         has_mps = torch.backends.mps.is_available() if hasattr(torch.backends, 'mps') else False
         
         # 選擇最佳加速方式
+        # 暫時禁用 MPS，因為可能導致轉錄問題
         if is_apple_silicon and has_mps:
-            acceleration = "Apple Silicon MPS"
-            device = "mps"
+            acceleration = "Apple Silicon (CPU 模式)"
+            device = "cpu"
+            print("💡 使用 CPU 模式以避免 MPS 相容性問題")
         elif has_cuda:
             acceleration = f"NVIDIA CUDA ({cuda_memory:.1f}GB)"
             device = "cuda"
@@ -375,7 +377,8 @@ class SmartTranscriber:
             # 第三步：智能優化格式（更激進的處理）
             print("   智能優化音訊格式...")
             # 使用更激進的音量增強和音頻處理
-            filter_chain = f"volume={volume_boost + 10}dB,highpass=f=100,lowpass=f=7000,compand=.3|.3:1|1:-90/-60|-60/-40|-40/-30|-20/-20:6:0:-90:0.2"
+            # 增加音量增強，添加動態範圍壓縮和噪音過濾
+            filter_chain = f"volume={volume_boost + 15}dB,highpass=f=80,lowpass=f=8000,compand=.3|.3:1|1:-90/-60|-60/-40|-40/-30|-20/-20:6:0:-90:0.2,afftdn=nf=-25"
             
             result2 = subprocess.run([
                 'ffmpeg', '-i', temp_wav, 
@@ -521,7 +524,7 @@ class SmartTranscriber:
         
         # 檢查結果是否只有驚嘆號
         text = result['text'].strip()
-        if text == '!' or len(text) <= 2:
+        if text == '!' or text == '!!!!!!!!!' or len(text) <= 2:
             print("⚠️  主要模型無法識別內容，嘗試備用模型...")
             
             # 載入備用模型

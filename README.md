@@ -33,7 +33,7 @@
 ### 環境需求
 
 - Python 3.8+
-- macOS (Apple Silicon 推薦) 或 Linux/Windows
+- Windows 10/11, macOS, 或 Linux
 - FFmpeg
 - 至少 8GB RAM (推薦 16GB+)
 
@@ -43,14 +43,11 @@
 # 安裝 Python 依賴
 pip install -r requirements.txt
 
-# 安裝 FFmpeg (macOS)
-brew install ffmpeg
-
-# 安裝 FFmpeg (Ubuntu/Debian)
-sudo apt update && sudo apt install ffmpeg
-
-# 安裝 FFmpeg (Windows)
-# 下載並安裝 https://ffmpeg.org/download.html
+# 安裝 FFmpeg
+# Windows: 下載並安裝 https://ffmpeg.org/download.html
+# macOS: brew install ffmpeg
+# Ubuntu/Debian: sudo apt update && sudo apt install ffmpeg
+# 或使用自動安裝腳本: ./install.sh (macOS/Linux)
 ```
 
 ### 使用方法
@@ -97,9 +94,11 @@ smart-audio-transcriber/
 ## 🔧 技術規格
 
 ### 硬體支援
-- **Apple Silicon**: M1/M2/M3/M4 晶片，使用 MPS 加速
+- **Windows**: Intel/AMD CPU + NVIDIA GPU (CUDA) 或 CPU 模式
+- **macOS**: Apple Silicon (M1/M2/M3/M4) 或 Intel CPU 模式
+- **Linux**: Intel/AMD CPU + NVIDIA GPU (CUDA) 或 CPU 模式
 - **NVIDIA GPU**: 支援 CUDA 加速
-- **CPU**: 自動回退到 CPU 處理
+- **CPU**: 所有平台都支援 CPU 處理
 
 ### 記憶體優化
 - **動態分段**: 根據可用記憶體調整分段大小 (60-300秒)
@@ -115,11 +114,11 @@ smart-audio-transcriber/
 ## 📊 效能表現
 
 ### 處理速度
-- **Apple M4 Pro (faster-whisper)**: ~4-6x 即時速度
-- **NVIDIA RTX 4090 (faster-whisper)**: ~6-8x 即時速度
-- **Apple M4 Pro (Breeze-ASR-25)**: ~2-3x 即時速度
-- **NVIDIA RTX 4090 (Breeze-ASR-25)**: ~3-4x 即時速度
-- **CPU (Intel i7)**: ~0.5-1x 即時速度
+- **Windows RTX 4090 (faster-whisper)**: ~6-8x 即時速度
+- **Windows RTX 4090 (Breeze-ASR-25)**: ~3-4x 即時速度
+- **Apple M4 Pro (CPU 模式)**: ~1-2x 即時速度
+- **Intel i7 (CPU 模式)**: ~0.5-1x 即時速度
+- **AMD Ryzen (CPU 模式)**: ~0.5-1x 即時速度
 
 ### 準確度
 - **台灣中文**: 95%+ 準確度 (Breeze-ASR-25)
@@ -192,6 +191,13 @@ def load_model(self):
    # 檢查音訊檔案品質
    # 確認音訊包含清晰的語音內容
    # 程式會自動嘗試備用模型
+   ```
+
+5. **Apple Silicon MPS 問題**
+   ```bash
+   # 程式已自動禁用 MPS 以避免相容性問題
+   # 使用 CPU 模式確保轉錄準確性
+   # 雖然速度較慢，但準確度更高
    ```
 
 ### 除錯模式

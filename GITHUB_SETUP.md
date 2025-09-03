@@ -40,6 +40,14 @@ git branch -M main
 git push -u origin main
 ```
 
+**Windows 用戶**:
+```cmd
+REM 使用命令提示字元或 PowerShell
+git remote add origin https://github.com/your-username/smart-audio-transcriber.git
+git branch -M main
+git push -u origin main
+```
+
 ### 4. 設置倉庫資訊
 在 GitHub 倉庫頁面設置：
 

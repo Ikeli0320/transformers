@@ -189,6 +189,11 @@ logs/
 ehthumbs.db
 Thumbs.db
 
+# Windows 系統檔案
+desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
 # 備份檔案
 *.bak
 *.backup

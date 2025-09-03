@@ -4,21 +4,31 @@
 
 ### 1. 準備音訊檔案
 ```bash
-# 將您的音訊檔案放在專案根目錄
+# Linux/macOS: 將您的音訊檔案放在專案根目錄
 cp /path/to/your/audio.aac source.aac
+
+# Windows: 複製音訊檔案到專案根目錄
+copy "C:\path\to\your\audio.aac" source.aac
 ```
 
 ### 2. 執行轉錄
 ```bash
-# 自動轉錄
+# Linux/macOS: 自動轉錄
 python3 transcribe.py
+
+# Windows: 自動轉錄
+python transcribe.py
 ```
 
 ### 3. 查看結果
 ```bash
-# 結果會保存在 轉錄結果/ 目錄
+# Linux/macOS: 結果會保存在 轉錄結果/ 目錄
 ls 轉錄結果/
 cat 轉錄結果/result-source-*.txt
+
+# Windows: 結果會保存在 轉錄結果\ 目錄
+dir 轉錄結果\
+type 轉錄結果\result-source-*.txt
 ```
 
 ## 進階使用
