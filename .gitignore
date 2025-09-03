@@ -1,0 +1,237 @@
+# 智能語音轉錄工具 .gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Flask stuff:
+instance/
+.webassets-cache
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+.pybuilder/
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# poetry
+poetry.lock
+
+# pdm
+.pdm.toml
+
+# PEP 582
+__pypackages__/
+
+# Celery stuff
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# pytype static type analyzer
+.pytype/
+
+# Cython debug symbols
+cython_debug/
+
+# PyCharm
+.idea/
+
+# VS Code
+.vscode/
+
+# 音訊檔案 (用戶上傳的)
+*.aac
+*.mp3
+*.wav
+*.m4a
+*.flac
+*.ogg
+*.wma
+*.aiff
+*.au
+*.ra
+*.amr
+*.3gp
+*.mp4
+*.mov
+*.avi
+*.mkv
+
+# 轉錄結果 (用戶生成的)
+轉錄結果/
+results/
+output/
+transcriptions/
+
+# 臨時檔案
+temp/
+tmp/
+*.tmp
+*.temp
+
+# 模型快取
+.cache/
+models/
+*.bin
+*.safetensors
+*.onnx
+
+# 日誌檔案
+*.log
+logs/
+
+# 系統檔案
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# 備份檔案
+*.bak
+*.backup
+*_backup.*
+*_old.*
+
+# 測試檔案
+test_*.wav
+test_*.aac
+test_*.mp3
+*_test.*
+
+# 開發工具
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 配置檔案 (可能包含敏感資訊)
+config.json
+settings.json
+secrets.json
+.env.local
+.env.production
+
+# 大檔案
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# 媒體檔案 (除了範例)
+media/
+uploads/
+downloads/
+
+# 特定於此專案的忽略項目
+# 保留範例檔案但忽略用戶上傳的檔案
+!examples/*.aac
+!examples/*.mp3
+!examples/*.wav
+
+# 保留 README 和文檔但忽略其他
+!README.md
+!LICENSE
+!requirements.txt
+!專案需求.md

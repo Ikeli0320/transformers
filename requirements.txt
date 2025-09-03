@@ -1,0 +1,35 @@
+# 智能語音轉錄工具依賴包
+# Smart Audio Transcriber Dependencies
+
+# 核心機器學習庫
+torch>=2.0.0
+transformers>=4.30.0
+accelerate>=0.20.0
+
+# 音訊處理
+librosa>=0.10.0
+soundfile>=0.12.0
+
+# 系統監控
+psutil>=5.9.0
+
+# 資料處理
+numpy>=1.24.0
+scipy>=1.10.0
+
+# 進度條和用戶界面
+tqdm>=4.65.0
+
+# 音訊格式支援
+pydub>=0.25.0
+
+# 可選: GPU 加速 (NVIDIA)
+# torch-audio>=2.0.0  # 如果需要額外的音訊處理功能
+
+# 可選: Apple Silicon 優化
+# 注意: MPS 支援已包含在 PyTorch 2.0+ 中
+
+# 開發和測試依賴 (可選)
+# pytest>=7.0.0
+# black>=23.0.0
+# flake8>=6.0.0
