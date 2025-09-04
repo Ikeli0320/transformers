@@ -163,17 +163,17 @@ class SmartTranscriber:
                 if elapsed - last_report >= 30:
                     current_memory = psutil.virtual_memory().percent
                     
-                    # 計算進度百分比（基於預估時間，但限制在 95% 以內）
-                    if hasattr(self, 'estimated_duration_minutes'):
-                        progress_percent = min(95, (elapsed_min / self.estimated_duration_minutes) * 100)
-                        
-                        # 檢查是否超過預估時間的 150%
-                        if elapsed_min > self.estimated_duration_minutes * 1.5:
-                            print(f"⚠️  進度: {progress_percent:.1f}% | 已處理: {elapsed_min:.1f}分鐘 | 記憶體: {current_memory:.1f}% | 狀態: 處理時間過長，建議中斷重試")
-                        else:
-                            print(f"📊 進度: {progress_percent:.1f}% | 已處理: {elapsed_min:.1f}分鐘 | 記憶體: {current_memory:.1f}% | 狀態: 處理中...")
+                    # 使用實際處理的段落數計算進度
+                    if hasattr(self, 'current_segment') and hasattr(self, 'total_segments'):
+                        progress_percent = (self.current_segment / self.total_segments) * 100
+                        print(f"📊 進度: {progress_percent:.1f}% | 已處理: {elapsed_min:.1f}分鐘 | 記憶體: {current_memory:.1f}% | 段落: {self.current_segment}/{self.total_segments} | 狀態: 處理中...")
                     else:
-                        print(f"⏱️  已處理時間: {elapsed_min:.1f} 分鐘 | 記憶體使用: {current_memory:.1f}% | 狀態: 處理中...")
+                        # 備用：基於預估時間計算進度
+                        if hasattr(self, 'estimated_duration_minutes'):
+                            progress_percent = min(95, (elapsed_min / self.estimated_duration_minutes) * 100)
+                            print(f"📊 進度: {progress_percent:.1f}% | 已處理: {elapsed_min:.1f}分鐘 | 記憶體: {current_memory:.1f}% | 狀態: 處理中...")
+                        else:
+                            print(f"⏱️  已處理時間: {elapsed_min:.1f} 分鐘 | 記憶體使用: {current_memory:.1f}% | 狀態: 處理中...")
                     
                     last_report = elapsed
             
@@ -859,6 +859,10 @@ class SmartTranscriber:
         print(f"🔢 智能分段: {num_segments} 個段落，每段 {segment_duration} 秒")
         print(f"📊 重疊時間: {stride_duration} 秒")
         
+        # 設置進度監控變數
+        self.total_segments = num_segments
+        self.current_segment = 0
+        
         all_results = []
         
         for i in range(num_segments):
@@ -866,6 +870,9 @@ class SmartTranscriber:
             end_time = min((i + 1) * segment_duration, total_duration)
             
             print(f"📊 處理段落 {i+1}/{num_segments}: {start_time:.1f}s - {end_time:.1f}s")
+            
+            # 更新進度監控
+            self.current_segment = i + 1
             
             try:
                 # 使用 ffmpeg 提取音訊段落
@@ -888,6 +895,9 @@ class SmartTranscriber:
                 # 智能轉錄段落 - 使用備用機制
                 segment_result = self.transcribe_with_fallback(segment_file)
                 
+                # 調試：檢查轉錄結果
+                print(f"🔍 段落 {i+1} 轉錄結果: {segment_result}")
+                
                 # 調整時間戳
                 if "chunks" in segment_result and segment_result["chunks"]:
                     for chunk in segment_result["chunks"]:
@@ -904,6 +914,7 @@ class SmartTranscriber:
                 
                 # 實時寫入結果
                 self.save_result_realtime(segment_result, output_file)
+                print(f"✅ 段落 {i+1} 轉錄完成並保存")
                 
                 # 清理臨時檔案
                 if os.path.exists(segment_file):
@@ -960,8 +971,12 @@ class SmartTranscriber:
         """實時保存轉錄結果"""
         try:
             with open(output_file, "a", encoding="utf-8") as f:
+                # 調試：檢查結果格式
+                print(f"🔍 保存結果格式: {type(result)}, 內容: {result}")
+                
                 # 安全處理時間戳
                 if "chunks" in result and result["chunks"]:
+                    print(f"🔍 找到 {len(result['chunks'])} 個 chunks")
                     for i, chunk in enumerate(result["chunks"]):
                         try:
                             if chunk.get('timestamp') and len(chunk['timestamp']) >= 2:
@@ -975,16 +990,21 @@ class SmartTranscriber:
                                     else:
                                         f.write(f"[時間戳未知] {text}\n")
                                     f.flush()  # 強制寫入檔案
+                                    print(f"✅ 已保存 chunk {i+1}: {text}")
                         except Exception as e:
                             text = chunk.get('text', '')
                             if text.strip():
                                 f.write(f"[時間戳錯誤] {text}\n")
                                 f.flush()
+                                print(f"✅ 已保存 chunk {i+1} (時間戳錯誤): {text}")
                 else:
                     # 如果沒有 chunks，寫入 text
                     if "text" in result and result["text"]:
-                        f.write(result["text"])
+                        f.write(result["text"] + "\n")
                         f.flush()
+                        print(f"✅ 已保存完整文字: {result['text']}")
+                    else:
+                        print("⚠️  沒有找到可保存的文字內容")
             
             print(f"✅ 轉錄結果已實時保存到: {output_file}")
             
