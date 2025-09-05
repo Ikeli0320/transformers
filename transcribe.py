@@ -237,8 +237,8 @@ class SmartTranscriber:
             print(f"⚠️  音訊分析失敗: {e}")
             return None
     
-    def _detect_silence_segments(self, audio_path, silence_threshold=-30, min_silence_duration=1.0):
-        """偵測空白段落"""
+    def _detect_silence_segments(self, audio_path, silence_threshold=-25, min_silence_duration=0.5):
+        """偵測空白段落（更嚴格的設定）"""
         try:
             print(f"🔍 偵測空白段落 (閾值: {silence_threshold}dB, 最小長度: {min_silence_duration}秒)...")
             
@@ -249,12 +249,24 @@ class SmartTranscriber:
             ], capture_output=True, text=True)
             
             silence_segments = []
+            current_start = None
             for line in result.stderr.split('\n'):
                 if 'silence_start:' in line:
-                    start_time = float(line.split('silence_start:')[1].strip())
-                elif 'silence_end:' in line:
-                    end_time = float(line.split('silence_end:')[1].strip())
-                    silence_segments.append((start_time, end_time))
+                    try:
+                        # 處理格式如: "silence_start: 3.240021 | silence_duration: 0.717771"
+                        start_part = line.split('silence_start:')[1].strip()
+                        start_time = float(start_part.split('|')[0].strip())
+                        current_start = start_time
+                    except (ValueError, IndexError):
+                        continue
+                elif 'silence_end:' in line and current_start is not None:
+                    try:
+                        end_part = line.split('silence_end:')[1].strip()
+                        end_time = float(end_part.split('|')[0].strip())
+                        silence_segments.append((current_start, end_time))
+                        current_start = None
+                    except (ValueError, IndexError):
+                        current_start = None
             
             print(f"📊 偵測到 {len(silence_segments)} 個空白段落")
             return silence_segments
@@ -369,8 +381,8 @@ class SmartTranscriber:
                 print(f"❌ WAV 轉換失敗: {result1.stderr}")
                 return audio_path
             
-            # 第二步：偵測並移除空白段落
-            silence_segments = self._detect_silence_segments(temp_wav, silence_threshold=-30, min_silence_duration=1.0)
+            # 第二步：偵測並移除空白段落（更嚴格的設定）
+            silence_segments = self._detect_silence_segments(temp_wav, silence_threshold=-25, min_silence_duration=0.5)
             if silence_segments:
                 temp_wav = self._remove_silence_segments(temp_wav, silence_segments)
             
@@ -967,13 +979,32 @@ class SmartTranscriber:
         except Exception as e:
             print(f"⚠️  清理臨時檔案時發生錯誤: {str(e)}")
     
+    def _filter_repetitive_content(self, text):
+        """過濾重複內容"""
+        if not text or len(text.strip()) < 3:
+            return text
+        
+        # 檢查是否為重複的單字
+        words = text.strip().split()
+        if len(words) == 1:
+            # 單字重複檢查
+            word = words[0]
+            if len(word) == 1 and word in ['好', 'A', '啊', '嗯', '哦', '呃', '嗯嗯', '哈哈']:
+                return ""  # 過濾掉重複的單字
+        
+        # 檢查是否為重複模式
+        if len(words) >= 3:
+            # 檢查前3個字是否重複
+            first_word = words[0]
+            if all(word == first_word for word in words[:3]):
+                return ""  # 過濾掉重複模式
+        
+        return text
+    
     def save_result_realtime(self, result, output_file):
-        """實時保存轉錄結果"""
+        """實時保存轉錄結果（過濾重複內容）"""
         try:
             with open(output_file, "a", encoding="utf-8") as f:
-                # 調試：檢查結果格式
-                print(f"🔍 保存結果格式: {type(result)}, 內容: {result}")
-                
                 # 安全處理時間戳
                 if "chunks" in result and result["chunks"]:
                     print(f"🔍 找到 {len(result['chunks'])} 個 chunks")
@@ -983,26 +1014,38 @@ class SmartTranscriber:
                                 start_time = chunk['timestamp'][0]
                                 end_time = chunk['timestamp'][1]
                                 text = chunk.get('text', '')
-                                if text.strip():
+                                
+                                # 過濾重複內容
+                                filtered_text = self._filter_repetitive_content(text)
+                                if not filtered_text:
+                                    print(f"🚫 過濾掉重複內容: {text}")
+                                    continue
+                                
+                                if filtered_text.strip():
                                     # 確保時間戳不為 None
                                     if start_time is not None and end_time is not None:
-                                        f.write(f"[{start_time:.1f}s - {end_time:.1f}s] {text}\n")
+                                        f.write(f"[{start_time:.1f}s - {end_time:.1f}s] {filtered_text}\n")
                                     else:
-                                        f.write(f"[時間戳未知] {text}\n")
+                                        f.write(f"[時間戳未知] {filtered_text}\n")
                                     f.flush()  # 強制寫入檔案
-                                    print(f"✅ 已保存 chunk {i+1}: {text}")
+                                    print(f"✅ 已保存 chunk {i+1}: {filtered_text}")
                         except Exception as e:
                             text = chunk.get('text', '')
-                            if text.strip():
-                                f.write(f"[時間戳錯誤] {text}\n")
+                            filtered_text = self._filter_repetitive_content(text)
+                            if filtered_text.strip():
+                                f.write(f"[時間戳錯誤] {filtered_text}\n")
                                 f.flush()
-                                print(f"✅ 已保存 chunk {i+1} (時間戳錯誤): {text}")
+                                print(f"✅ 已保存 chunk {i+1} (時間戳錯誤): {filtered_text}")
                 else:
                     # 如果沒有 chunks，寫入 text
                     if "text" in result and result["text"]:
-                        f.write(result["text"] + "\n")
-                        f.flush()
-                        print(f"✅ 已保存完整文字: {result['text']}")
+                        filtered_text = self._filter_repetitive_content(result["text"])
+                        if filtered_text.strip():
+                            f.write(filtered_text + "\n")
+                            f.flush()
+                            print(f"✅ 已保存完整文字: {filtered_text}")
+                        else:
+                            print("🚫 過濾掉重複內容")
                     else:
                         print("⚠️  沒有找到可保存的文字內容")
             
