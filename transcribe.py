@@ -113,16 +113,16 @@ class SmartTranscriber:
         is_apple_silicon = self.hardware_info['is_apple_silicon']
         has_cuda = self.hardware_info['has_cuda']
         
-        # 動態調整分段大小 (60-300 秒)
+        # 動態調整分段大小 (30-120 秒，更小的分段減少雜訊)
         if memory_gb >= 16:
-            segment_duration = 300  # 5 分鐘
+            segment_duration = 120  # 2 分鐘
         elif memory_gb >= 8:
-            segment_duration = 180  # 3 分鐘
+            segment_duration = 90   # 1.5 分鐘
         else:
             segment_duration = 60   # 1 分鐘
         
-        # 動態調整重疊大小 (3-10 秒)
-        stride_duration = min(10, max(3, segment_duration // 30))
+        # 動態調整重疊大小 (5-15 秒，增加重疊減少斷句問題)
+        stride_duration = min(15, max(5, segment_duration // 20))
         
         # 動態調整批次大小
         if memory_gb >= 16:
@@ -138,8 +138,8 @@ class SmartTranscriber:
         else:
             torch_dtype = torch.float32
         
-        # 動態調整音量增強 (15-30dB)
-        volume_boost = min(30, max(15, 15 + (memory_gb - 4) * 2))
+        # 動態調整音量增強 (5-15dB，更溫和的增強)
+        volume_boost = min(15, max(5, 5 + (memory_gb - 4) * 1))
         
         return {
             'segment_duration': segment_duration,
@@ -237,8 +237,8 @@ class SmartTranscriber:
             print(f"⚠️  音訊分析失敗: {e}")
             return None
     
-    def _detect_silence_segments(self, audio_path, silence_threshold=-25, min_silence_duration=0.5):
-        """偵測空白段落（更嚴格的設定）"""
+    def _detect_silence_segments(self, audio_path, silence_threshold=-30, min_silence_duration=1.0):
+        """偵測空白段落（溫和設定）"""
         try:
             print(f"🔍 偵測空白段落 (閾值: {silence_threshold}dB, 最小長度: {min_silence_duration}秒)...")
             
@@ -350,9 +350,9 @@ class SmartTranscriber:
             print(f"   時長: {audio_info['duration']:.1f} 秒")
             print(f"   音量: {audio_info['volume']:.1f} dB")
             
-            # 動態調整音量增強
+            # 動態調整音量增強（更保守的設定）
             current_volume = audio_info['volume']
-            target_volume = -6  # 目標音量
+            target_volume = -12  # 更保守的目標音量
             volume_boost = max(0, target_volume - current_volume)
             volume_boost = min(volume_boost, self.optimized_params['volume_boost'])
             
@@ -381,16 +381,16 @@ class SmartTranscriber:
                 print(f"❌ WAV 轉換失敗: {result1.stderr}")
                 return audio_path
             
-            # 第二步：偵測並移除空白段落（更嚴格的設定）
-            silence_segments = self._detect_silence_segments(temp_wav, silence_threshold=-25, min_silence_duration=0.5)
+            # 第二步：偵測並移除空白段落（溫和設定）
+            silence_segments = self._detect_silence_segments(temp_wav, silence_threshold=-30, min_silence_duration=1.0)
             if silence_segments:
                 temp_wav = self._remove_silence_segments(temp_wav, silence_segments)
             
-            # 第三步：智能優化格式（更激進的處理）
+            # 第三步：智能優化格式（溫和處理）
             print("   智能優化音訊格式...")
-            # 使用更激進的音量增強和音頻處理
-            # 增加音量增強，添加動態範圍壓縮和噪音過濾
-            filter_chain = f"volume={volume_boost + 15}dB,highpass=f=80,lowpass=f=8000,compand=.3|.3:1|1:-90/-60|-60/-40|-40/-30|-20/-20:6:0:-90:0.2,afftdn=nf=-25"
+            # 使用溫和的音量增強和音頻處理，避免過度處理
+            # 適度的音量增強，輕微的噪音過濾
+            filter_chain = f"volume={volume_boost}dB,highpass=f=100,lowpass=f=7000,afftdn=nf=-20"
             
             result2 = subprocess.run([
                 'ffmpeg', '-i', temp_wav, 
@@ -646,7 +646,7 @@ class SmartTranscriber:
             'chunks': estimated_chunks
         }
     
-    def check_existing_transcription(self, audio_path):
+    def check_existing_transcription(self, audio_path, processed_audio=None, processed_file_info=None):
         """檢查是否已有轉錄結果"""
         if not os.path.exists(self.output_dir):
             return None
@@ -661,6 +661,16 @@ class SmartTranscriber:
         
         print(f"🔍 檢查現有轉錄結果...")
         print(f"📊 當前音檔: {file_size_mb:.1f} MB, {duration_min:.1f} 分鐘")
+        
+        # 如果沒有提供處理後的檔案資訊，則進行預處理
+        if processed_audio is None or processed_file_info is None:
+            processed_audio = self.preprocess_audio(audio_path)
+            processed_file_info = self.get_file_info(processed_audio)
+        
+        processed_size_mb = processed_file_info['size_mb']
+        processed_duration_min = processed_file_info['duration_min']
+        
+        print(f"📊 處理後音檔: {processed_size_mb:.1f} MB, {processed_duration_min:.1f} 分鐘")
         
         # 尋找可能的轉錄結果檔案
         result_files = []
@@ -689,14 +699,14 @@ class SmartTranscriber:
                 with open(result_path, "r", encoding="utf-8") as f:
                     content = f.read()
                     
-                # 檢查檔案大小和音訊長度是否匹配
-                size_match = f"檔案大小: {file_size_mb:.1f} MB" in content
-                duration_match = f"音訊長度: {duration_min:.1f} 分鐘" in content
+                # 檢查檔案大小和音訊長度是否匹配（使用處理後的檔案資訊）
+                size_match = f"檔案大小: {processed_size_mb:.1f} MB" in content
+                duration_match = f"音訊長度: {processed_duration_min:.1f} 分鐘" in content
                 
                 if size_match and duration_match:
                     print(f"✅ 找到匹配的轉錄結果: {result_file}")
-                    print(f"📊 檔案大小: {file_size_mb:.1f} MB")
-                    print(f"⏱️  音訊長度: {duration_min:.1f} 分鐘")
+                    print(f"📊 檔案大小: {processed_size_mb:.1f} MB")
+                    print(f"⏱️  音訊長度: {processed_duration_min:.1f} 分鐘")
                     
                     # 檢查是否有實際的轉錄內容
                     has_content = False
@@ -732,10 +742,10 @@ class SmartTranscriber:
                     
                     if has_content:
                         print(f"✅ 找到完整的轉錄結果，將續接此檔案")
-                        return result_path, first_sentence
+                        return result_path, first_sentence, processed_audio, processed_file_info
                     else:
                         print(f"⚠️  檔案匹配但無轉錄內容，將續接此檔案")
-                        return result_path, "無內容"
+                        return result_path, "無內容", processed_audio, processed_file_info
                 else:
                     if not size_match:
                         print(f"⚠️  檔案大小不匹配: {result_file}")
@@ -764,10 +774,10 @@ class SmartTranscriber:
         num_segments = int(total_duration / segment_duration) + 1
         print(f"🔢 將分為 {num_segments} 個 {segment_duration} 秒的段落")
         
-        # 檢查是否已有轉錄結果
-        existing_result = self.check_existing_transcription(audio_path)
+        # 檢查是否已有轉錄結果（傳遞處理後的檔案資訊）
+        existing_result = self.check_existing_transcription(audio_path, processed_audio, file_info)
         if existing_result:
-            result_path, first_sentence = existing_result
+            result_path, first_sentence, processed_audio, file_info = existing_result
             print(f"✅ 發現現有轉錄結果，將進行續轉處理")
             return self.create_segmented_transcription(audio_path, processed_audio, file_info, segment_duration, result_path)
         
@@ -830,13 +840,45 @@ class SmartTranscriber:
         print(f"📝 現有轉錄內容長度: {len(transcribed_content)} 字元")
         print(f"🔍 第一句話: {first_sentence[:50]}...")
         
-        # 檢查是否已經完成轉錄
-        if len(transcribed_content.strip()) > 1000:  # 如果已有大量內容
-            print(f"✅ 轉錄結果已存在且內容完整，跳過重新轉錄")
+        # 檢查最後一段的時間戳記，判斷是否完成轉錄
+        lines = transcribed_content.strip().split('\n')
+        last_timestamp = None
+        
+        for line in reversed(lines):
+            line = line.strip()
+            if line.startswith('[') and ']' in line:
+                # 提取時間戳記，格式如：[780.0s - 780.0s]
+                try:
+                    timestamp_part = line.split(']')[0][1:]  # 移除 [ 和 ]
+                    if ' - ' in timestamp_part:
+                        end_time_str = timestamp_part.split(' - ')[1]
+                        if end_time_str.endswith('s'):
+                            end_time = float(end_time_str[:-1])
+                            last_timestamp = end_time
+                            break
+                except:
+                    continue
+        
+        # 獲取音訊總長度
+        total_duration = file_info['duration_min'] * 60  # 轉為秒
+        
+        if last_timestamp:
+            print(f"📊 最後轉錄時間: {last_timestamp:.1f}s / {total_duration:.1f}s")
+        else:
+            print(f"📊 最後轉錄時間: 無法解析 / {total_duration:.1f}s")
+        
+        # 檢查是否已經完成轉錄（允許 30 秒的誤差）
+        if last_timestamp and last_timestamp >= (total_duration - 30):
+            print(f"✅ 轉錄結果已完整，跳過重新轉錄")
             print(f"📁 現有結果檔案: {existing_result_path}")
             return existing_result_path, file_info, True  # 返回 True 表示已完成
-        
-        return existing_result_path, file_info, False  # 返回 False 表示需要續轉
+        else:
+            if last_timestamp:
+                progress = last_timestamp/total_duration*100
+                print(f"🔄 轉錄未完成，需要續轉 (進度: {progress:.1f}%)")
+            else:
+                print(f"🔄 轉錄未完成，需要續轉 (無法解析時間戳記)")
+            return existing_result_path, file_info, False  # 返回 False 表示需要續轉
     
     def transcribe_with_realtime_save(self, audio_path, output_file, file_info):
         """分段轉錄並實時保存結果"""
@@ -980,7 +1022,7 @@ class SmartTranscriber:
             print(f"⚠️  清理臨時檔案時發生錯誤: {str(e)}")
     
     def _filter_repetitive_content(self, text):
-        """過濾重複內容"""
+        """過濾重複內容（更嚴格的過濾）"""
         if not text or len(text.strip()) < 3:
             return text
         
@@ -989,15 +1031,22 @@ class SmartTranscriber:
         if len(words) == 1:
             # 單字重複檢查
             word = words[0]
-            if len(word) == 1 and word in ['好', 'A', '啊', '嗯', '哦', '呃', '嗯嗯', '哈哈']:
+            if len(word) == 1 and word in ['好', 'A', '啊', '嗯', '哦', '呃', '嗯嗯', '哈哈', '呵']:
                 return ""  # 過濾掉重複的單字
         
-        # 檢查是否為重複模式
-        if len(words) >= 3:
-            # 檢查前3個字是否重複
+        # 檢查是否為重複模式（更嚴格）
+        if len(words) >= 2:
+            # 檢查前2個字是否重複
             first_word = words[0]
-            if all(word == first_word for word in words[:3]):
+            if all(word == first_word for word in words[:2]):
                 return ""  # 過濾掉重複模式
+        
+        # 檢查是否為連續重複字符
+        if len(text) > 5:
+            # 檢查是否有超過3個連續相同字符
+            for i in range(len(text) - 3):
+                if text[i] == text[i+1] == text[i+2] == text[i+3]:
+                    return ""  # 過濾掉連續重複字符
         
         return text
     
@@ -1251,12 +1300,23 @@ class SmartTranscriber:
                 # 智能檢查是否已有轉錄結果
                 existing_result = self.check_existing_transcription(audio_file)
                 if existing_result:
-                    result_path, first_sentence = existing_result
+                    if len(existing_result) == 4:
+                        result_path, first_sentence, processed_audio, file_info = existing_result
+                    else:
+                        result_path, first_sentence = existing_result
+                        processed_audio = None
+                        file_info = None
                     print(f"✅ 發現現有轉錄結果: {result_path}")
                     print(f"📝 第一句話: {first_sentence[:50]}...")
                     
                     # 智能檢查是否需要續轉
-                    resume_result = self.resume_transcription(audio_file, None, None, result_path, first_sentence, self.optimized_params['segment_duration'])
+                    if processed_audio and file_info:
+                        resume_result = self.resume_transcription(audio_file, processed_audio, file_info, result_path, first_sentence, self.optimized_params['segment_duration'])
+                    else:
+                        # 如果沒有處理後的檔案資訊，先進行預處理
+                        processed_audio = self.preprocess_audio(audio_file)
+                        file_info = self.get_file_info(processed_audio)
+                        resume_result = self.resume_transcription(audio_file, processed_audio, file_info, result_path, first_sentence, self.optimized_params['segment_duration'])
                     if len(resume_result) == 3 and resume_result[2]:  # 已完成
                         print(f"🎉 轉錄已完成，跳過處理")
                         continue
